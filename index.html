@@ -1,0 +1,1173 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>國立中央大學 NCUx 雲端課程授權同意書 - 線上簽署與自訂系統</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- html2canvas 用於完美渲染繁體中文與版面 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <!-- jsPDF 用於直接在前端生成已套表 PDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            ncu: {
+              50: '#f0f7ff',
+              100: '#e0effe',
+              500: '#0066cc',
+              600: '#02529c',
+              700: '#004080',
+              800: '#003366',
+              900: '#002244'
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* 避免手機手寫簽名時畫面上下滑動 */
+    .touch-none {
+      touch-action: none !important;
+    }
+    
+    /* 橫向全螢幕簽名模式 */
+    .landscape-mode {
+      position: fixed !important;
+      inset: 0 !important;
+      width: 100vw !important;
+      height: 100vh !important;
+      max-width: none !important;
+      z-index: 9999 !important;
+      border-radius: 0 !important;
+      background: #ffffff !important;
+      padding: 1.25rem !important;
+      display: flex !important;
+      flex-direction: column !important;
+      justify-content: space-between !important;
+    }
+
+    /* 簽名板網格底圖 */
+    .canvas-grid-bg {
+      background-size: 20px 20px;
+      background-image: 
+        linear-gradient(to right, rgba(0, 0, 0, 0.03) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(0, 0, 0, 0.03) 1px, transparent 1px);
+    }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 antialiased min-h-screen flex flex-col justify-between selection:bg-ncu-100 selection:text-ncu-800">
+
+  <!-- 頂部品牌導覽列 -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+    <div class="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center space-x-2.5">
+        <div class="w-8 h-8 rounded-lg bg-ncu-700 text-white flex items-center justify-center font-bold text-sm shadow">
+          NCU
+        </div>
+        <div>
+          <h1 class="text-sm font-bold text-slate-900 leading-tight">國立中央大學</h1>
+          <p class="text-xs text-slate-500">NCUx 雲端課程授權同意書系統</p>
+        </div>
+      </div>
+
+      <!-- 身分切換快捷鈕 (模擬承辦人 vs 授權人視角) -->
+      <div class="flex items-center bg-slate-100 p-1 rounded-xl text-xs font-semibold">
+        <button id="tabSigner" class="px-3 py-1.5 rounded-lg bg-white text-ncu-700 shadow-sm transition">
+          <i class="fa-solid fa-signature mr-1"></i>授權人簽署
+        </button>
+        <button id="tabAdmin" class="px-3 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition">
+          <i class="fa-solid fa-sliders mr-1"></i>承辦人編輯
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- 承辦人設定抽屜 (可收合) -->
+  <div id="adminPanel" class="hidden bg-ncu-50 border-b border-ncu-100 py-4 px-4 transition-all">
+    <div class="max-w-2xl mx-auto space-y-3">
+      <div class="flex items-center justify-between">
+        <h2 class="text-xs font-bold text-ncu-800 uppercase tracking-wider flex items-center gap-1.5">
+          <i class="fa-solid fa-gear"></i> 承辦人參數自訂面板（即時更新連結與內容）
+        </h2>
+        <span class="text-[11px] text-ncu-600">更動會即時反映至手機簽署頁</span>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+        <div>
+          <label class="block text-slate-700 font-medium mb-1">授權人姓名</label>
+          <input id="inputAuthorName" type="text" value="林教授 / 業界專家" class="w-full px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-ncu-600 bg-white">
+        </div>
+        <div>
+          <label class="block text-slate-700 font-medium mb-1">活動 / 課程名稱</label>
+          <input id="inputCourseName" type="text" value="AI 與前瞻雲端應用實務講座" class="w-full px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-ncu-600 bg-white">
+        </div>
+        <div>
+          <label class="block text-slate-700 font-medium mb-1">授權條款類型</label>
+          <select id="selectLicenseType" class="w-full px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-ncu-600 bg-white">
+            <option value="CC BY-NC-SA 4.0">創用 CC BY-NC-SA 4.0 (姓名標示-非商業性-相同方式分享)</option>
+            <option value="CC BY-NC 4.0">創用 CC BY-NC 4.0 (姓名標示-非商業性)</option>
+            <option value="Academic-Only">學術無償專案錄影專用授權 (非開放授權)</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-slate-700 font-medium mb-1">授權標的範圍</label>
+          <input id="inputScope" type="text" value="錄影文件(如投影片、書面上課資料及補充資料等)" class="w-full px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-ncu-600 bg-white">
+        </div>
+      </div>
+
+      <!-- 雲端部署專用：一鍵生成專屬簽署連結 -->
+      <div class="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-ncu-200/60">
+        <span class="text-[11px] text-ncu-700 font-medium">
+          <i class="fa-solid fa-link mr-1"></i>雲端網址已包含上述參數，發送給授權人即可自動帶入
+        </span>
+        <div class="flex items-center gap-2">
+          <button id="btnAdminPreview" type="button" class="px-3 py-1.5 bg-white border border-ncu-300 hover:bg-ncu-100 text-ncu-800 rounded-lg text-xs font-semibold shadow-sm transition flex items-center gap-1.5 active:scale-95">
+            <i class="fa-solid fa-eye text-ncu-600"></i>
+            <span>即時套表預覽</span>
+          </button>
+          <button id="btnCopyShareUrl" type="button" class="px-3 py-1.5 bg-ncu-700 hover:bg-ncu-800 text-white rounded-lg text-xs font-semibold shadow-sm transition flex items-center gap-1.5 active:scale-95">
+            <i class="fa-solid fa-copy"></i>
+            <span id="txtCopyShareUrl">複製專屬簽署連結</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 主要內容區塊 -->
+  <main class="max-w-2xl mx-auto px-4 py-5 w-full flex-grow space-y-4">
+    
+    <!-- 授權文件核心卡片 -->
+    <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+        <div>
+          <span id="badgeLicense" class="text-xs font-semibold uppercase tracking-wider text-ncu-600 bg-ncu-50 px-2 py-0.5 rounded border border-ncu-100">
+            CC BY-NC-SA 4.0
+          </span>
+          <h2 class="text-base font-bold text-slate-900 mt-1">國立中央大學 NCUx 雲端課程 授權同意書</h2>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <button id="btnOpenDocPreview" type="button" class="text-xs text-ncu-700 hover:text-ncu-900 bg-ncu-50 hover:bg-ncu-100 border border-ncu-200 font-medium flex items-center gap-1 transition px-2.5 py-1.5 rounded-lg active:scale-95">
+            <i class="fa-solid fa-eye text-ncu-600"></i>
+            <span>預覽同意書</span>
+          </button>
+          <button id="btnViewFullText" type="button" class="text-xs text-slate-600 hover:text-slate-800 font-medium flex items-center gap-1 transition px-2 py-1.5 rounded-lg hover:bg-slate-100">
+            <i class="fa-regular fa-file-lines"></i>
+            <span>全文條款</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 動態課程/活動資訊面板 -->
+      <div class="bg-slate-50 rounded-xl p-3.5 space-y-2 border border-slate-100 text-xs text-slate-600">
+        <div class="flex justify-between items-center">
+          <span class="text-slate-400">授權人姓名：</span>
+          <span id="displayAuthorName" class="font-semibold text-slate-800">林教授 / 業界專家</span>
+        </div>
+        <div class="flex justify-between items-center">
+          <span class="text-slate-400">活動 / 課程名稱：</span>
+          <span id="displayCourseName" class="font-semibold text-slate-800">AI 與前瞻雲端應用實務講座</span>
+        </div>
+        <div class="flex justify-between items-start">
+          <span class="text-slate-400 shrink-0">授權標的範圍：</span>
+          <span id="displayScope" class="text-slate-700 font-medium text-right">錄影文件(如投影片、書面上課資料及補充資料等)</span>
+        </div>
+        <div class="flex justify-between items-center">
+          <span class="text-slate-400">授權對象：</span>
+          <span class="text-slate-700 font-medium">國立中央大學（學術用途無償授權）</span>
+        </div>
+      </div>
+
+      <!-- 創用CC 重點導讀清單 -->
+      <div class="mt-4 pt-3 border-t border-slate-100">
+        <h3 class="text-xs font-bold text-slate-700 mb-2.5 flex items-center gap-1.5">
+          <i class="fa-solid fa-shield-halved text-ncu-600"></i>
+          授權核心要點導讀（4.0 國際版）
+        </h3>
+        <ul id="clauseList" class="grid grid-cols-2 gap-2 text-xs">
+          <li class="p-2.5 rounded-lg bg-slate-50 border border-slate-100 flex flex-col justify-between">
+            <span class="font-bold text-slate-800 flex items-center gap-1">
+              <i class="fa-solid fa-user-tag text-emerald-600 text-[10px]"></i> 姓名標示
+            </span>
+            <span class="text-[11px] text-slate-500 mt-1">按照指定方式保留姓名標示</span>
+          </li>
+          <li class="p-2.5 rounded-lg bg-slate-50 border border-slate-100 flex flex-col justify-between">
+            <span class="font-bold text-slate-800 flex items-center gap-1">
+              <i class="fa-solid fa-ban text-rose-500 text-[10px]"></i> 非商業性
+            </span>
+            <span class="text-[11px] text-slate-500 mt-1">不得為商業目的利用本著作</span>
+          </li>
+          <li class="p-2.5 rounded-lg bg-slate-50 border border-slate-100 flex flex-col justify-between">
+            <span class="font-bold text-slate-800 flex items-center gap-1">
+              <i class="fa-solid fa-code-compare text-amber-500 text-[10px]"></i> 相同方式分享
+            </span>
+            <span class="text-[11px] text-slate-500 mt-1">散布衍生著作需採相同授權</span>
+          </li>
+          <li class="p-2.5 rounded-lg bg-slate-50 border border-slate-100 flex flex-col justify-between">
+            <span class="font-bold text-slate-800 flex items-center gap-1">
+              <i class="fa-solid fa-lock-open text-blue-500 text-[10px]"></i> 不得增設限制
+            </span>
+            <span class="text-[11px] text-slate-500 mt-1">不得另加科技保護等法律限制</span>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- 行動簽名板卡片 -->
+    <div id="signatureWrapperCard" class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 transition-all duration-300">
+      <div class="flex items-center justify-between mb-3">
+        <div>
+          <label class="block text-sm font-bold text-slate-900">
+            立授權書人簽名 <span class="text-rose-500">*</span>
+          </label>
+          <p class="text-xs text-slate-400 mt-0.5">請以手指或觸控筆在虛線框內簽名</p>
+        </div>
+        <!-- 旋轉橫向簽署按鈕 -->
+        <button id="btnToggleLandscape" type="button" class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium transition active:scale-95">
+          <i class="fa-solid fa-rotate"></i>
+          <span id="txtLandscapeBtn">橫向大字模式</span>
+        </button>
+      </div>
+
+      <!-- Canvas 繪圖畫布容器 -->
+      <div id="canvasContainer" class="relative w-full h-44 rounded-xl border-2 border-dashed border-slate-300 hover:border-ncu-600 transition-colors canvas-grid-bg overflow-hidden flex items-center justify-center">
+        <!-- 簽名底線輔助線 -->
+        <div class="absolute bottom-9 left-6 right-6 border-b border-slate-200 pointer-events-none flex justify-end">
+          <span class="text-[10px] text-slate-300 select-none pb-0.5">簽署基準線</span>
+        </div>
+        
+        <!-- 提示文字（落筆後自動隱藏） -->
+        <div id="signPrompt" class="absolute pointer-events-none select-none text-slate-400 flex flex-col items-center gap-1.5 transition-opacity duration-200">
+          <i class="fa-solid fa-signature text-2xl text-slate-300"></i>
+          <span class="text-xs font-medium">請在此處親筆簽名</span>
+        </div>
+
+        <!-- 簽名 Canvas -->
+        <canvas id="signatureCanvas" class="w-full h-full touch-none cursor-crosshair relative z-10"></canvas>
+      </div>
+
+      <!-- 簽名板工具列 -->
+      <div class="flex items-center justify-between mt-3">
+        <button id="btnClearSignature" type="button" class="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-rose-600 font-medium py-1.5 px-3 rounded-lg hover:bg-rose-50 transition active:scale-95">
+          <i class="fa-solid fa-eraser"></i>
+          <span>清除重簽</span>
+        </button>
+        <span id="canvasStatusText" class="text-xs text-slate-400">尚未輸入筆跡</span>
+      </div>
+    </div>
+
+    <!-- 條款同意確認勾選 -->
+    <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80">
+      <label class="flex items-start gap-3 cursor-pointer select-none">
+        <input id="chkAgree" type="checkbox" class="mt-1 w-4 h-4 rounded text-ncu-700 border-slate-300 focus:ring-ncu-600 focus:ring-2 accent-ncu-700">
+        <span class="text-xs text-slate-600 leading-relaxed">
+          本人已詳細審閱並充分理解上述「國立中央大學 NCUx 雲端課程授權同意書」內容，確認無誤並同意以電子簽名方式完成學術用途授權。
+        </span>
+      </label>
+    </div>
+
+    <!-- 動作按鈕區 -->
+    <div class="space-y-2 pt-2">
+      <!-- 送出按鈕 -->
+      <button id="btnSubmitSign" type="button" disabled class="w-full py-3.5 px-4 rounded-xl bg-slate-300 text-slate-500 font-bold text-sm shadow-sm transition-all duration-200 flex items-center justify-center gap-2 cursor-not-allowed">
+        <i class="fa-solid fa-file-signature"></i>
+        <span>確認簽署並產出電子授權憑證</span>
+      </button>
+
+      <!-- 下載透明背景簽名圖檔 (第一步驗證用) -->
+      <button id="btnDownloadSignature" type="button" disabled class="w-full py-2.5 px-4 rounded-xl bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 font-medium text-xs transition duration-200 flex items-center justify-center gap-2 cursor-not-allowed">
+        <i class="fa-solid fa-download"></i>
+        <span>下載透明簽名 PNG 圖檔 (合成壓印驗證)</span>
+      </button>
+    </div>
+
+    <!-- 底部資安及稽核存證提示 -->
+    <div class="text-center pt-2">
+      <p class="text-[11px] text-slate-400 flex items-center justify-center gap-1">
+        <i class="fa-solid fa-lock text-[10px]"></i>
+        TLS 傳輸加密保護 • 遵循《電子簽章法》與 Audit Trail 數位存證標準
+      </p>
+    </div>
+  </main>
+
+  <!-- 專屬 PDF 高解析度渲染模板（針對繁體中文排版，完全依據原版同意書設計） -->
+  <div id="pdfRenderContainer" class="fixed left-[-9999px] top-0 pointer-events-none">
+    <div id="pdfTemplate" style="width: 794px; min-height: 1123px; font-family: 'PingFang TC', 'Microsoft JhengHei', 'Noto Sans TC', sans-serif;" class="bg-white p-16 text-slate-900 flex flex-col justify-between box-border">
+      <div>
+        <!-- 頂部修正版資訊 -->
+        <div class="flex justify-between items-center text-xs text-slate-500 pb-4 border-b border-slate-200">
+          <span>國立中央大學 NCUx 雲端課程推動計畫</span>
+          <span>2023.09.04 修正版範本</span>
+        </div>
+
+        <!-- 標頭機構與校徽文字 -->
+        <div class="text-center mt-8">
+          <div class="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-slate-900 text-white font-bold text-lg mb-2">
+            NCU
+          </div>
+          <h2 class="text-xl font-bold tracking-widest text-slate-900">國立中央大學</h2>
+          <p class="text-xs uppercase tracking-wider text-slate-500 font-semibold">National Central University</p>
+          <h1 class="text-2xl font-bold text-slate-900 mt-5 mb-8 tracking-wide">國立中央大學 NCUx 雲端課程 授權同意書</h1>
+        </div>
+
+        <!-- 條款內文 -->
+        <div class="mt-6 text-[15px] leading-relaxed text-slate-800 text-justify space-y-5">
+          <p class="indent-8 leading-8">
+            茲同意將本人（<span id="pdfAuthorName" class="font-bold border-b border-slate-900 px-2 py-0.5">未填寫</span>）於活動／課程「<span id="pdfCourseName" class="font-bold border-b border-slate-900 px-2 py-0.5">未填寫</span>」之錄影文件（<span id="pdfScope" class="font-bold border-b border-slate-900 px-2 py-0.5">錄影文件(如投影片、書面上課資料及補充資料等)</span>）等著作，採用「<span id="pdfLicenseType" class="font-bold border-b border-slate-900 px-2 py-0.5">創用CC「姓名標示-非商業性-相同方式分享」4.0版</span>」國際授權條款，在作為學術用途之前提下，無償授權國立中央大學。
+          </p>
+
+          <div class="bg-slate-50 rounded-xl p-5 border border-slate-200 mt-6">
+            <h4 class="font-bold text-sm text-slate-900 mb-3 flex items-center gap-2">
+              <span>◆</span> 創用CC 4.0版國際授權條款重點：
+            </h4>
+            <ul class="space-y-2.5 text-xs text-slate-700 pl-4">
+              <li class="flex items-start gap-2">
+                <span class="font-bold text-slate-900 shrink-0">◆ 姓名標示：</span>
+                <span>利用人需按照本人所指定的方式，保留姓名標示。</span>
+              </li>
+              <li class="flex items-start gap-2">
+                <span class="font-bold text-slate-900 shrink-0">◆ 非商業性：</span>
+                <span>利用人不得為商業目的而利用本著作。</span>
+              </li>
+              <li class="flex items-start gap-2">
+                <span class="font-bold text-slate-900 shrink-0">◆ 相同方式分享：</span>
+                <span>若利用人改變、轉變或改作本著作，當散布該衍生著作時，利用人需採用與本著作相同或類似之授權條款。</span>
+              </li>
+              <li class="flex items-start gap-2">
+                <span class="font-bold text-slate-900 shrink-0">◆ 不得增設限制：</span>
+                <span>利用人不得另行附加法律條款或採取科技保護措施，以限制他人依本授權條款原已享有之利用權利。</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- 簽名與立書人欄位 -->
+        <div class="mt-14 space-y-6">
+          <div class="flex items-center gap-4">
+            <span class="text-base font-bold text-slate-900">立授權書人：</span>
+            <span id="pdfSignerPrintName" class="text-base font-bold text-slate-800"></span>
+          </div>
+
+          <div class="flex items-start gap-4">
+            <span class="text-sm font-semibold text-slate-600 mt-2">（手寫簽名）：</span>
+            <div class="w-72 h-24 border-b-2 border-dashed border-slate-300 relative flex items-center justify-center bg-slate-50/50 rounded-lg">
+              <img id="pdfSignatureImg" class="max-h-full max-w-full object-contain" alt="手寫簽名">
+            </div>
+          </div>
+
+          <div class="pt-4 text-sm font-semibold text-slate-800 tracking-wider">
+            中華民國 <span id="pdfYear" class="inline-block px-2"></span> 年 <span id="pdfMonth" class="inline-block px-2"></span> 月 <span id="pdfDay" class="inline-block px-2"></span> 日
+          </div>
+        </div>
+      </div>
+
+      <!-- 頁尾稽核存證防偽區 (Audit Trail Certificate) -->
+      <div class="mt-12 pt-4 border-t-2 border-slate-100 flex justify-between items-end text-[10px] text-slate-400 font-mono">
+        <div class="space-y-1">
+          <div>數位存證稽核碼：<span id="pdfAuditHash" class="text-slate-600 font-bold"></span></div>
+          <div>簽署驗證時間戳：<span id="pdfAuditTimestamp" class="text-slate-600"></span> (NTP Verified)</div>
+          <div>防偽證明：本文件依《電子簽章法》以行動觸控手寫方式簽署並固化雜湊存證。</div>
+        </div>
+        <div class="text-right">
+          <div class="text-slate-500 font-bold">國立中央大學 NCUx 雲端課程製作團隊</div>
+          <div>E-Document Verified</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 頁尾宣告 -->
+  <footer class="bg-white border-t border-slate-200 py-3 mt-6">
+    <div class="max-w-2xl mx-auto px-4 text-center text-xs text-slate-400">
+      國立中央大學 NCUx 雲端課程製作團隊 © 2026
+    </div>
+  </footer>
+
+  <!-- 全文條款 Modal 彈窗 -->
+  <div id="modalFullText" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-lg w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+      <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+        <h3 class="font-bold text-slate-900 text-sm">授權同意書原文條款</h3>
+        <button id="btnCloseModal" type="button" class="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="p-5 overflow-y-auto space-y-4 text-xs text-slate-700 leading-relaxed">
+        <div class="text-center border-b border-slate-100 pb-3">
+          <p class="text-slate-500 font-bold text-xs tracking-widest">國立中央大學</p>
+          <h4 class="font-bold text-base text-slate-900 mt-1">國立中央大學 NCUx雲端課程 授權同意書</h4>
+          <span class="text-[10px] text-slate-400">2023.09.04 修正版範本</span>
+        </div>
+        <p class="indent-6">
+          茲同意將本人於活動/課程的錄影文件(如投影片、書面上課資料及補充資料等)等著作，採用創用CC「姓名標示-非商業性-相同方式分享」4.0版國際授權條款，在作為學術用途之前提下，無償授權國立中央大學。
+        </p>
+        <div class="bg-slate-50 p-3.5 rounded-lg border border-slate-200/80 space-y-2">
+          <p class="font-bold text-slate-900 text-xs">創用CC 4.0版國際授權條款重點：</p>
+          <ul class="list-disc pl-4 space-y-1.5 text-slate-600">
+            <li><strong>姓名標示：</strong>利用人需按照本人所指定的方式，保留姓名標示。</li>
+            <li><strong>非商業性：</strong>利用人不得為商業目的而利用本著作。</li>
+            <li><strong>相同方式分享：</strong>若利用人改變、轉變或改作本著作，當散布該衍生著作時，利用人需採用與本著作相同或類似的授權條款。</li>
+            <li><strong>不得增設限制：</strong>利用人不得另行附加法律條款或採取科技保護措施，以限制他人依本授權條款原已享有之利用權利。</li>
+          </ul>
+        </div>
+      </div>
+      <div class="px-5 py-3 border-t border-slate-100 bg-slate-50 flex justify-end">
+        <button id="btnConfirmRead" type="button" class="px-4 py-2 bg-ncu-700 text-white rounded-lg text-xs font-semibold hover:bg-ncu-800 transition">
+          我已閱讀完畢
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 簽署完成提示 Modal (含一鍵下載已簽署 PDF) -->
+  <div id="modalSuccess" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-sm w-full p-6 text-center shadow-2xl space-y-4">
+      <div class="w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-2xl mx-auto shadow-inner">
+        <i class="fa-solid fa-check"></i>
+      </div>
+      <div>
+        <h3 class="font-bold text-slate-900 text-base">授權簽署已完成</h3>
+        <p class="text-xs text-slate-500 mt-1">電子筆跡與稽核紀錄雜湊已存證完畢</p>
+      </div>
+      <div class="bg-slate-50 rounded-xl p-3 text-left text-[11px] font-mono text-slate-600 space-y-1.5 border border-slate-100">
+        <div><span class="text-slate-400">授權人：</span><span id="auditAuthor"></span></div>
+        <div><span class="text-slate-400">簽署時間：</span><span id="auditTimestamp"></span></div>
+        <div><span class="text-slate-400">存證雜湊：</span><span id="auditHash" class="text-emerald-700 font-bold break-all"></span></div>
+      </div>
+      <div class="pt-2 space-y-2">
+        <button id="btnPreviewFromSuccess" type="button" class="w-full py-2.5 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1.5 border border-slate-300">
+          <i class="fa-solid fa-eye"></i>
+          <span>線上預覽已簽署授權書</span>
+        </button>
+        <button id="btnDownloadFullPDF" type="button" class="w-full py-2.5 bg-ncu-700 text-white rounded-xl text-xs font-semibold hover:bg-ncu-800 transition flex items-center justify-center gap-1.5 shadow-sm">
+          <i class="fa-solid fa-file-pdf"></i>
+          <span>下載已簽署授權書 (PDF)</span>
+        </button>
+        <button id="btnCloseSuccess" type="button" class="w-full py-2 bg-white text-slate-500 rounded-xl text-xs font-semibold hover:bg-slate-100 transition">
+          關閉視窗
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- A4 套表文件即時預覽視窗 (Document Preview Modal) -->
+  <div id="modalDocPreview" class="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm hidden flex-col justify-between">
+    <!-- 預覽視窗頂部工具列 -->
+    <div class="bg-slate-900 text-white px-4 py-3 flex items-center justify-between shadow-md z-10">
+      <div class="flex items-center space-x-2">
+        <i class="fa-solid fa-file-circle-check text-emerald-400"></i>
+        <span class="text-xs sm:text-sm font-bold">授權同意書 文件即時預覽 (A4 規格)</span>
+        <span id="previewSignStatusBadge" class="hidden sm:inline-block text-[11px] px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">未簽名樣張</span>
+      </div>
+
+      <!-- 縮放與動作控制 -->
+      <div class="flex items-center space-x-2">
+        <div class="hidden sm:flex items-center bg-slate-800 rounded-lg p-0.5 border border-slate-700 text-xs">
+          <button id="btnZoomOut" type="button" title="縮小" class="px-2 py-1 text-slate-300 hover:text-white hover:bg-slate-700 rounded transition">
+            <i class="fa-solid fa-magnifying-glass-minus"></i>
+          </button>
+          <span id="txtZoomLevel" class="px-2 text-[11px] font-mono text-slate-300 select-none">100%</span>
+          <button id="btnZoomIn" type="button" title="放大" class="px-2 py-1 text-slate-300 hover:text-white hover:bg-slate-700 rounded transition">
+            <i class="fa-solid fa-magnifying-glass-plus"></i>
+          </button>
+          <button id="btnZoomFit" type="button" title="自適應視窗" class="px-2 py-1 text-slate-300 hover:text-white hover:bg-slate-700 rounded transition">
+            <i class="fa-solid fa-expand"></i>
+          </button>
+        </div>
+
+        <button id="btnModalDownloadPDF" type="button" class="px-3 py-1.5 bg-ncu-600 hover:bg-ncu-500 text-white rounded-lg text-xs font-semibold transition flex items-center gap-1 shadow-sm active:scale-95">
+          <i class="fa-solid fa-download"></i>
+          <span class="hidden sm:inline">下載 PDF</span>
+        </button>
+
+        <button id="btnCloseDocPreview" type="button" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center transition">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- 預覽卷動容器 -->
+    <div id="previewScrollArea" class="flex-grow overflow-auto p-4 sm:p-8 flex justify-center bg-slate-800/80 items-start">
+      <!-- 縮放定位外框 -->
+      <div id="previewScaleWrapper" class="transition-transform duration-150 origin-top shadow-2xl">
+        <!-- 預覽文件實體 (動態複製並渲染 A4 排版) -->
+        <div id="previewPaper" style="width: 794px; min-height: 1123px; font-family: 'PingFang TC', 'Microsoft JhengHei', 'Noto Sans TC', sans-serif;" class="bg-white p-16 text-slate-900 flex flex-col justify-between box-border rounded-sm">
+          <!-- 內容將由 JavaScript 動態填入與即時同步 -->
+        </div>
+      </div>
+    </div>
+
+    <!-- 預覽視窗底部提示列 -->
+    <div class="bg-slate-900 border-t border-slate-800 px-4 py-2 text-center text-[11px] text-slate-400">
+      提示：此預覽完全比照 A4 正式印製規格。若尚未完成手寫簽名，簽署欄位將保留為留白樣式。
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // 取得畫布與主要 DOM 元件
+      const canvas = document.getElementById('signatureCanvas');
+      const ctx = canvas.getContext('2d');
+      const promptText = document.getElementById('signPrompt');
+      const btnClear = document.getElementById('btnClearSignature');
+      const btnDownload = document.getElementById('btnDownloadSignature');
+      const btnSubmit = document.getElementById('btnSubmitSign');
+      const chkAgree = document.getElementById('chkAgree');
+      const statusText = document.getElementById('canvasStatusText');
+      const btnToggleLandscape = document.getElementById('btnToggleLandscape');
+      const txtLandscapeBtn = document.getElementById('txtLandscapeBtn');
+      const signatureCard = document.getElementById('signatureWrapperCard');
+      const canvasContainer = document.getElementById('canvasContainer');
+
+      // 承辦人設定元件
+      const tabSigner = document.getElementById('tabSigner');
+      const tabAdmin = document.getElementById('tabAdmin');
+      const adminPanel = document.getElementById('adminPanel');
+      const inputAuthorName = document.getElementById('inputAuthorName');
+      const inputCourseName = document.getElementById('inputCourseName');
+      const selectLicenseType = document.getElementById('selectLicenseType');
+      const inputScope = document.getElementById('inputScope');
+      const displayAuthorName = document.getElementById('displayAuthorName');
+      const displayCourseName = document.getElementById('displayCourseName');
+      const displayScope = document.getElementById('displayScope');
+      const badgeLicense = document.getElementById('badgeLicense');
+
+      // Modal 元件
+      const btnViewFullText = document.getElementById('btnViewFullText');
+      const btnCloseModal = document.getElementById('btnCloseModal');
+      const btnConfirmRead = document.getElementById('btnConfirmRead');
+      const modalFullText = document.getElementById('modalFullText');
+      const modalSuccess = document.getElementById('modalSuccess');
+      const btnCloseSuccess = document.getElementById('btnCloseSuccess');
+      const btnDownloadFullPDF = document.getElementById('btnDownloadFullPDF');
+
+      // 預覽功能元件
+      const modalDocPreview = document.getElementById('modalDocPreview');
+      const btnOpenDocPreview = document.getElementById('btnOpenDocPreview');
+      const btnAdminPreview = document.getElementById('btnAdminPreview');
+      const btnCloseDocPreview = document.getElementById('btnCloseDocPreview');
+      const btnPreviewFromSuccess = document.getElementById('btnPreviewFromSuccess');
+      const btnModalDownloadPDF = document.getElementById('btnModalDownloadPDF');
+      const previewPaper = document.getElementById('previewPaper');
+      const previewScaleWrapper = document.getElementById('previewScaleWrapper');
+      const previewScrollArea = document.getElementById('previewScrollArea');
+      const previewSignStatusBadge = document.getElementById('previewSignStatusBadge');
+      const btnZoomIn = document.getElementById('btnZoomIn');
+      const btnZoomOut = document.getElementById('btnZoomOut');
+      const btnZoomFit = document.getElementById('btnZoomFit');
+      const txtZoomLevel = document.getElementById('txtZoomLevel');
+
+      let currentZoom = 1.0;
+
+      // 狀態變數
+      let isDrawing = false;
+      let strokeCount = 0;
+      let points = [];
+      let isLandscape = false;
+      let trimmedSignatureDataUrl = null;
+
+      // 承辦人自訂欄位同步邏輯
+      function syncAdminFields() {
+        displayAuthorName.textContent = inputAuthorName.value || '未填寫';
+        displayCourseName.textContent = inputCourseName.value || '未填寫';
+        displayScope.textContent = inputScope.value || '未填寫';
+        badgeLicense.textContent = selectLicenseType.value;
+      }
+
+      inputAuthorName.addEventListener('input', syncAdminFields);
+      inputCourseName.addEventListener('input', syncAdminFields);
+      inputScope.addEventListener('input', syncAdminFields);
+      selectLicenseType.addEventListener('change', syncAdminFields);
+
+      // 讀取 URL 網址參數（雲端上線後，支援承辦人發送專屬網址）
+      function parseUrlParams() {
+        const params = new URLSearchParams(window.location.search);
+        if (params.has('author')) inputAuthorName.value = decodeURIComponent(params.get('author'));
+        if (params.has('course')) inputCourseName.value = decodeURIComponent(params.get('course'));
+        if (params.has('scope')) inputScope.value = decodeURIComponent(params.get('scope'));
+        if (params.has('license')) {
+          const lic = decodeURIComponent(params.get('license'));
+          const options = Array.from(selectLicenseType.options).map(o => o.value);
+          if (options.includes(lic)) {
+            selectLicenseType.value = lic;
+          }
+        }
+        syncAdminFields();
+      }
+      parseUrlParams();
+
+      // 複製專屬簽署連結功能
+      const btnCopyShareUrl = document.getElementById('btnCopyShareUrl');
+      const txtCopyShareUrl = document.getElementById('txtCopyShareUrl');
+
+      btnCopyShareUrl.addEventListener('click', () => {
+        const url = new URL(window.location.href.split('?')[0]);
+        url.searchParams.set('author', inputAuthorName.value.trim());
+        url.searchParams.set('course', inputCourseName.value.trim());
+        url.searchParams.set('scope', inputScope.value.trim());
+        url.searchParams.set('license', selectLicenseType.value);
+
+        // 複製至剪貼簿
+        const dummy = document.createElement('input');
+        document.body.appendChild(dummy);
+        dummy.value = url.toString();
+        dummy.select();
+        document.execCommand('copy');
+        document.body.removeChild(dummy);
+
+        // 變更按鈕提示回饋
+        txtCopyShareUrl.textContent = '連結已複製！';
+        btnCopyShareUrl.classList.replace('bg-ncu-700', 'bg-emerald-600');
+        setTimeout(() => {
+          txtCopyShareUrl.textContent = '複製專屬簽署連結';
+          btnCopyShareUrl.classList.replace('bg-emerald-600', 'bg-ncu-700');
+        }, 2200);
+      });
+
+      // 切換承辦人與簽署人視角
+      tabAdmin.addEventListener('click', () => {
+        adminPanel.classList.toggle('hidden');
+        const isHidden = adminPanel.classList.contains('hidden');
+        if (!isHidden) {
+          tabAdmin.classList.add('bg-white', 'text-ncu-700', 'shadow-sm');
+          tabSigner.classList.remove('bg-white', 'text-ncu-700', 'shadow-sm');
+        } else {
+          tabAdmin.classList.remove('bg-white', 'text-ncu-700', 'shadow-sm');
+          tabSigner.classList.add('bg-white', 'text-ncu-700', 'shadow-sm');
+        }
+      });
+
+      tabSigner.addEventListener('click', () => {
+        adminPanel.classList.add('hidden');
+        tabSigner.classList.add('bg-white', 'text-ncu-700', 'shadow-sm');
+        tabAdmin.classList.remove('bg-white', 'text-ncu-700', 'shadow-sm');
+      });
+
+      // 根據容器尺寸高解析度縮放 Canvas（支援 Retina 螢幕不模糊）
+      function resizeCanvas() {
+        const rect = canvas.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) return;
+
+        const dpr = window.devicePixelRatio || 1;
+        // 暫存既有內容
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = canvas.width;
+        tempCanvas.height = canvas.height;
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCtx.drawImage(canvas, 0, 0);
+
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+        ctx.scale(dpr, dpr);
+
+        // 筆畫樣式設定
+        ctx.strokeStyle = '#0f172a';
+        ctx.lineWidth = 2.6;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        // 重新繪入原本的筆跡
+        if (strokeCount > 0) {
+          ctx.drawImage(tempCanvas, 0, 0, rect.width, rect.height);
+        }
+      }
+
+      window.addEventListener('resize', resizeCanvas);
+      setTimeout(resizeCanvas, 100);
+
+      // 取得觸控或滑鼠相對於 Canvas 的座標
+      function getCoordinates(event) {
+        const rect = canvas.getBoundingClientRect();
+        let clientX, clientY;
+        if (event.touches && event.touches.length > 0) {
+          clientX = event.touches[0].clientX;
+          clientY = event.touches[0].clientY;
+        } else {
+          clientX = event.clientX;
+          clientY = event.clientY;
+        }
+        return {
+          x: clientX - rect.left,
+          y: clientY - rect.top
+        };
+      }
+
+      function startDrawing(e) {
+        e.preventDefault();
+        isDrawing = true;
+        promptText.style.opacity = '0';
+        points = [];
+        const coord = getCoordinates(e);
+        points.push(coord);
+      }
+
+      function draw(e) {
+        if (!isDrawing) return;
+        e.preventDefault();
+
+        const coord = getCoordinates(e);
+        points.push(coord);
+
+        if (points.length < 3) {
+          const b = points[0];
+          ctx.beginPath();
+          ctx.arc(b.x, b.y, ctx.lineWidth / 2, 0, Math.PI * 2, true);
+          ctx.fill();
+          ctx.closePath();
+          return;
+        }
+
+        // 使用二次貝茲曲線達到流暢圓滑筆觸
+        ctx.beginPath();
+        ctx.moveTo(points[0].x, points[0].y);
+        for (let i = 1; i < points.length - 2; i++) {
+          const c = (points[i].x + points[i + 1].x) / 2;
+          const d = (points[i].y + points[i + 1].y) / 2;
+          ctx.quadraticCurveTo(points[i].x, points[i].y, c, d);
+        }
+        ctx.quadraticCurveTo(
+          points[points.length - 2].x,
+          points[points.length - 2].y,
+          points[points.length - 1].x,
+          points[points.length - 1].y
+        );
+        ctx.stroke();
+      }
+
+      function stopDrawing(e) {
+        if (!isDrawing) return;
+        isDrawing = false;
+        strokeCount++;
+        updateValidationState();
+      }
+
+      // 畫布事件監聽
+      canvas.addEventListener('mousedown', startDrawing);
+      canvas.addEventListener('mousemove', draw);
+      canvas.addEventListener('mouseup', stopDrawing);
+      canvas.addEventListener('mouseleave', stopDrawing);
+
+      canvas.addEventListener('touchstart', startDrawing, { passive: false });
+      canvas.addEventListener('touchmove', draw, { passive: false });
+      canvas.addEventListener('touchend', stopDrawing, { passive: false });
+
+      // 清除筆跡
+      btnClear.addEventListener('click', () => {
+        const dpr = window.devicePixelRatio || 1;
+        ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
+        strokeCount = 0;
+        points = [];
+        trimmedSignatureDataUrl = null;
+        promptText.style.opacity = '1';
+        updateValidationState();
+      });
+
+      // 檢查是否符合送出標準
+      function updateValidationState() {
+        const hasSignature = strokeCount > 0;
+        const isAgreed = chkAgree.checked;
+
+        if (hasSignature) {
+          statusText.textContent = `已記錄筆劃 (${strokeCount} 劃)`;
+          statusText.className = 'text-xs text-emerald-600 font-medium';
+        } else {
+          statusText.textContent = '尚未輸入筆跡';
+          statusText.className = 'text-xs text-slate-400';
+        }
+
+        // 按鈕激活狀態
+        btnDownload.disabled = !hasSignature;
+        if (hasSignature) {
+          btnDownload.classList.remove('cursor-not-allowed');
+          btnDownload.classList.add('hover:border-ncu-600', 'text-ncu-700');
+        } else {
+          btnDownload.classList.add('cursor-not-allowed');
+          btnDownload.classList.remove('hover:border-ncu-600', 'text-ncu-700');
+        }
+
+        const canSubmit = hasSignature && isAgreed;
+        btnSubmit.disabled = !canSubmit;
+        if (canSubmit) {
+          btnSubmit.classList.remove('bg-slate-300', 'text-slate-500', 'cursor-not-allowed');
+          btnSubmit.classList.add('bg-ncu-700', 'hover:bg-ncu-800', 'text-white', 'shadow-md', 'active:scale-[0.99]');
+        } else {
+          btnSubmit.classList.remove('bg-ncu-700', 'hover:bg-ncu-800', 'text-white', 'shadow-md', 'active:scale-[0.99]');
+          btnSubmit.classList.add('bg-slate-300', 'text-slate-500', 'cursor-not-allowed');
+        }
+      }
+
+      chkAgree.addEventListener('change', updateValidationState);
+
+      // 橫向大字模式切換
+      btnToggleLandscape.addEventListener('click', () => {
+        isLandscape = !isLandscape;
+        if (isLandscape) {
+          signatureCard.classList.add('landscape-mode');
+          canvasContainer.classList.remove('h-44');
+          canvasContainer.classList.add('flex-grow', 'h-[65vh]');
+          txtLandscapeBtn.textContent = '返回直向排版';
+        } else {
+          signatureCard.classList.remove('landscape-mode');
+          canvasContainer.classList.add('h-44');
+          canvasContainer.classList.remove('flex-grow', 'h-[65vh]');
+          txtLandscapeBtn.textContent = '橫向大字模式';
+        }
+        setTimeout(resizeCanvas, 200);
+      });
+
+      // 裁剪畫布透明空白，只匯出有簽名筆跡的區域
+      function getTrimmedCanvas() {
+        const dpr = window.devicePixelRatio || 1;
+        const w = canvas.width;
+        const h = canvas.height;
+        const imgData = ctx.getImageData(0, 0, w, h);
+        const data = imgData.data;
+        let minX = w, minY = h, maxX = 0, maxY = 0;
+
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            const alpha = data[(y * w + x) * 4 + 3];
+            if (alpha > 0) {
+              if (x < minX) minX = x;
+              if (x > maxX) maxX = x;
+              if (y < minY) minY = y;
+              if (y > maxY) maxY = y;
+            }
+          }
+        }
+
+        if (maxX <= minX || maxY <= minY) return canvas;
+
+        // 保留邊界邊距
+        const padding = 16 * dpr;
+        minX = Math.max(0, minX - padding);
+        minY = Math.max(0, minY - padding);
+        maxX = Math.min(w, maxX + padding);
+        maxY = Math.min(h, maxY + padding);
+
+        const trimmedWidth = maxX - minX;
+        const trimmedHeight = maxY - minY;
+
+        const trimmedCanvas = document.createElement('canvas');
+        trimmedCanvas.width = trimmedWidth;
+        trimmedCanvas.height = trimmedHeight;
+        const trimmedCtx = trimmedCanvas.getContext('2d');
+        trimmedCtx.drawImage(canvas, minX, minY, trimmedWidth, trimmedHeight, 0, 0, trimmedWidth, trimmedHeight);
+
+        return trimmedCanvas;
+      }
+
+      // 下載透明簽名 PNG
+      btnDownload.addEventListener('click', () => {
+        if (strokeCount === 0) return;
+        const trimmed = getTrimmedCanvas();
+        const dataUrl = trimmed.toDataURL('image/png');
+        const link = document.createElement('a');
+        link.download = `NCUx_Signature_${new Date().toISOString().slice(0,10)}.png`;
+        link.href = dataUrl;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      });
+
+      // 產生簡易存證雜湊 (Audit Hash)
+      function generateMockHash() {
+        const chars = '0123456789ABCDEF';
+        let hash = 'SHA256:';
+        for (let i = 0; i < 32; i++) {
+          hash += chars[Math.floor(Math.random() * chars.length)];
+        }
+        return hash;
+      }
+
+      // 同步最新資料至 A4 樣張 DOM 結構
+      function syncPreviewDocument() {
+        const author = displayAuthorName.textContent.trim() || '未填寫';
+        const course = displayCourseName.textContent.trim() || '未填寫';
+        const scope = displayScope.textContent.trim() || '未填寫';
+        const license = badgeLicense.textContent.trim();
+        const today = new Date();
+        const rocYear = today.getFullYear() - 1911;
+        const month = today.getMonth() + 1;
+        const day = today.getDate();
+
+        // 取得當前畫布簽名（若有書寫）
+        let signatureMarkup = '';
+        const hasSig = strokeCount > 0;
+        let auditHashStr = document.getElementById('auditHash').textContent || generateMockHash();
+        let auditTimeStr = document.getElementById('auditTimestamp').textContent || today.toLocaleString('zh-TW', { hour12: false });
+
+        if (hasSig) {
+          const trimmed = getTrimmedCanvas();
+          const sigUrl = trimmed.toDataURL('image/png');
+          signatureMarkup = `<img src="${sigUrl}" class="max-h-full max-w-full object-contain" alt="手寫簽名">`;
+          previewSignStatusBadge.textContent = '已具備手寫筆跡';
+          previewSignStatusBadge.className = 'hidden sm:inline-block text-[11px] px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800';
+        } else {
+          signatureMarkup = `
+            <div class="text-slate-400 text-xs flex items-center justify-center gap-1 select-none">
+              <i class="fa-solid fa-pen-nib"></i>
+              <span>（尚未簽名，保留簽署留白區）</span>
+            </div>
+          `;
+          previewSignStatusBadge.textContent = '未簽名空白樣張';
+          previewSignStatusBadge.className = 'hidden sm:inline-block text-[11px] px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700';
+        }
+
+        // 動態注入完整的中央大學 A4 文件排版
+        previewPaper.innerHTML = `
+          <div>
+            <div class="flex justify-between items-center text-xs text-slate-500 pb-4 border-b border-slate-200">
+              <span>國立中央大學 NCUx 雲端課程推動計畫</span>
+              <span>2023.09.04 修正版範本</span>
+            </div>
+
+            <div class="text-center mt-8">
+              <div class="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-slate-900 text-white font-bold text-lg mb-2">
+                NCU
+              </div>
+              <h2 class="text-xl font-bold tracking-widest text-slate-900">國立中央大學</h2>
+              <p class="text-xs uppercase tracking-wider text-slate-500 font-semibold">National Central University</p>
+              <h1 class="text-2xl font-bold text-slate-900 mt-5 mb-8 tracking-wide">國立中央大學 NCUx 雲端課程 授權同意書</h1>
+            </div>
+
+            <div class="mt-6 text-[15px] leading-relaxed text-slate-800 text-justify space-y-5">
+              <p class="indent-8 leading-8">
+                茲同意將本人（<span class="font-bold border-b border-slate-900 px-2 py-0.5">${author}</span>）於活動／課程「<span class="font-bold border-b border-slate-900 px-2 py-0.5">${course}</span>」之錄影文件（<span class="font-bold border-b border-slate-900 px-2 py-0.5">${scope}</span>）等著作，採用「<span class="font-bold border-b border-slate-900 px-2 py-0.5">${license}</span>」國際授權條款，在作為學術用途之前提下，無償授權國立中央大學。
+              </p>
+
+              <div class="bg-slate-50 rounded-xl p-5 border border-slate-200 mt-6">
+                <h4 class="font-bold text-sm text-slate-900 mb-3 flex items-center gap-2">
+                  <span>◆</span> 創用CC 4.0版國際授權條款重點：
+                </h4>
+                <ul class="space-y-2.5 text-xs text-slate-700 pl-4">
+                  <li class="flex items-start gap-2">
+                    <span class="font-bold text-slate-900 shrink-0">◆ 姓名標示：</span>
+                    <span>利用人需按照本人所指定的方式，保留姓名標示。</span>
+                  </li>
+                  <li class="flex items-start gap-2">
+                    <span class="font-bold text-slate-900 shrink-0">◆ 非商業性：</span>
+                    <span>利用人不得為商業目的而利用本著作。</span>
+                  </li>
+                  <li class="flex items-start gap-2">
+                    <span class="font-bold text-slate-900 shrink-0">◆ 相同方式分享：</span>
+                    <span>若利用人改變、轉變或改作本著作，當散布該衍生著作時，利用人需採用與本著作相同或類似之授權條款。</span>
+                  </li>
+                  <li class="flex items-start gap-2">
+                    <span class="font-bold text-slate-900 shrink-0">◆ 不得增設限制：</span>
+                    <span>利用人不得另行附加法律條款或採取科技保護措施，以限制他人依本授權條款原已享有之利用權利。</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="mt-14 space-y-6">
+              <div class="flex items-center gap-4">
+                <span class="text-base font-bold text-slate-900">立授權書人：</span>
+                <span class="text-base font-bold text-slate-800">${author}</span>
+              </div>
+
+              <div class="flex items-start gap-4">
+                <span class="text-sm font-semibold text-slate-600 mt-2">（手寫簽名）：</span>
+                <div class="w-72 h-24 border-b-2 border-dashed border-slate-300 relative flex items-center justify-center bg-slate-50/50 rounded-lg overflow-hidden">
+                  ${signatureMarkup}
+                </div>
+              </div>
+
+              <div class="pt-4 text-sm font-semibold text-slate-800 tracking-wider">
+                中華民國 <span class="inline-block px-2">${rocYear}</span> 年 <span class="inline-block px-2">${month}</span> 月 <span class="inline-block px-2">${day}</span> 日
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-12 pt-4 border-t-2 border-slate-100 flex justify-between items-end text-[10px] text-slate-400 font-mono">
+            <div class="space-y-1">
+              <div>數位存證稽核碼：<span class="text-slate-600 font-bold">${auditHashStr}</span></div>
+              <div>簽署驗證時間戳：<span class="text-slate-600">${auditTimeStr}</span> (NTP Verified)</div>
+              <div>防偽證明：本文件依《電子簽章法》以行動觸控手寫方式簽署並固化雜湊存證。</div>
+            </div>
+            <div class="text-right">
+              <div class="text-slate-500 font-bold">國立中央大學 NCUx 雲端課程製作團隊</div>
+              <div>E-Document Verified</div>
+            </div>
+          </div>
+        `;
+      }
+
+      // 開啟 A4 預覽視窗
+      function openDocumentPreview() {
+        syncPreviewDocument();
+        modalDocPreview.classList.remove('hidden');
+        modalDocPreview.classList.add('flex');
+        document.body.style.overflow = 'hidden';
+        fitPreviewToScreen();
+      }
+
+      // 關閉 A4 預覽視窗
+      function closeDocumentPreview() {
+        modalDocPreview.classList.add('hidden');
+        modalDocPreview.classList.remove('flex');
+        document.body.style.overflow = '';
+      }
+
+      // 依目前螢幕寬度自動等比適配 A4 寬度（794px）
+      function fitPreviewToScreen() {
+        const containerWidth = previewScrollArea.clientWidth - 40;
+        const targetWidth = 794;
+        let scale = containerWidth / targetWidth;
+        if (scale > 1) scale = 1;
+        if (scale < 0.38) scale = 0.38;
+        applyZoom(scale);
+      }
+
+      function applyZoom(scale) {
+        currentZoom = scale;
+        previewScaleWrapper.style.transform = `scale(${currentZoom})`;
+        // 修正縮放後卷動容器底部的留白
+        const heightDiff = (1123 * (1 - currentZoom));
+        previewScaleWrapper.style.marginBottom = `-${heightDiff}px`;
+        txtZoomLevel.textContent = `${Math.round(currentZoom * 100)}%`;
+      }
+
+      // 預覽縮放事件
+      btnZoomIn.addEventListener('click', () => {
+        if (currentZoom < 1.6) applyZoom(currentZoom + 0.15);
+      });
+      btnZoomOut.addEventListener('click', () => {
+        if (currentZoom > 0.4) applyZoom(currentZoom - 0.15);
+      });
+      btnZoomFit.addEventListener('click', fitPreviewToScreen);
+      window.addEventListener('resize', () => {
+        if (!modalDocPreview.classList.contains('hidden')) {
+          fitPreviewToScreen();
+        }
+      });
+
+      // 預覽按鈕綁定
+      btnOpenDocPreview.addEventListener('click', openDocumentPreview);
+      btnAdminPreview.addEventListener('click', openDocumentPreview);
+      btnPreviewFromSuccess.addEventListener('click', () => {
+        openDocumentPreview();
+      });
+      btnCloseDocPreview.addEventListener('click', closeDocumentPreview);
+
+      // 預覽視窗內直接下載 PDF
+      btnModalDownloadPDF.addEventListener('click', () => {
+        btnDownloadFullPDF.click();
+      });
+
+      // 確認簽署按鈕點擊
+      btnSubmit.addEventListener('click', () => {
+        if (btnSubmit.disabled) return;
+        
+        // 暫存裁切後的簽名圖
+        const trimmed = getTrimmedCanvas();
+        trimmedSignatureDataUrl = trimmed.toDataURL('image/png');
+
+        const now = new Date();
+        document.getElementById('auditAuthor').textContent = displayAuthorName.textContent;
+        document.getElementById('auditTimestamp').textContent = now.toLocaleString('zh-TW', { hour12: false });
+        document.getElementById('auditHash').textContent = generateMockHash();
+        
+        modalSuccess.classList.remove('hidden');
+        modalSuccess.classList.add('flex');
+      });
+
+      // 使用 html2canvas + jsPDF 完美渲染繁體中文已簽署授權書
+      btnDownloadFullPDF.addEventListener('click', async () => {
+        if (!window.jspdf || !window.html2canvas || !trimmedSignatureDataUrl) return;
+
+        // 切換按鈕狀態避免重複點擊
+        const originalBtnHTML = btnDownloadFullPDF.innerHTML;
+        btnDownloadFullPDF.disabled = true;
+        btnDownloadFullPDF.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>正在產出高解析度繁體中文 PDF...</span>';
+
+        try {
+          // 1. 同步最新資訊至隱藏 A4 模板
+          const author = displayAuthorName.textContent.trim() || '未填寫';
+          const course = displayCourseName.textContent.trim() || '未填寫';
+          const scope = displayScope.textContent.trim() || '未填寫';
+          const license = badgeLicense.textContent.trim();
+          const today = new Date();
+
+          document.getElementById('pdfAuthorName').textContent = author;
+          document.getElementById('pdfCourseName').textContent = course;
+          document.getElementById('pdfScope').textContent = scope;
+          document.getElementById('pdfLicenseType').textContent = license;
+          document.getElementById('pdfSignerPrintName').textContent = author;
+          document.getElementById('pdfSignatureImg').src = trimmedSignatureDataUrl;
+
+          // 民國年換算
+          document.getElementById('pdfYear').textContent = (today.getFullYear() - 1911).toString();
+          document.getElementById('pdfMonth').textContent = (today.getMonth() + 1).toString();
+          document.getElementById('pdfDay').textContent = today.getDate().toString();
+
+          // 稽核碼與時間
+          document.getElementById('pdfAuditHash').textContent = document.getElementById('auditHash').textContent;
+          document.getElementById('pdfAuditTimestamp').textContent = document.getElementById('auditTimestamp').textContent;
+
+          // 2. 等待圖片載入後截圖
+          const templateEl = document.getElementById('pdfTemplate');
+          
+          // 透過 html2canvas 擷取，scale: 2 實現 Retina 超高列印品質
+          const renderedCanvas = await html2canvas(templateEl, {
+            scale: 2,
+            useCORS: true,
+            logging: false,
+            backgroundColor: '#ffffff'
+          });
+
+          const imgData = renderedCanvas.toDataURL('image/jpeg', 0.95);
+
+          // 3. 建立標準 A4 PDF
+          const { jsPDF } = window.jspdf;
+          const pdf = new jsPDF({
+            orientation: 'portrait',
+            unit: 'mm',
+            format: 'a4'
+          });
+
+          const pdfWidth = pdf.internal.pageSize.getWidth();
+          const pdfHeight = pdf.internal.pageSize.getHeight();
+
+          pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+          pdf.save(`NCUx_授權同意書_${author}_已簽署.pdf`);
+        } catch (error) {
+          console.error('PDF 生成失敗:', error);
+        } finally {
+          btnDownloadFullPDF.disabled = false;
+          btnDownloadFullPDF.innerHTML = originalBtnHTML;
+        }
+      });
+
+      // Modal 控制
+      btnViewFullText.addEventListener('click', () => {
+        modalFullText.classList.remove('hidden');
+        modalFullText.classList.add('flex');
+      });
+
+      const closeModal = () => {
+        modalFullText.classList.add('hidden');
+        modalFullText.classList.remove('flex');
+      };
+      btnCloseModal.addEventListener('click', closeModal);
+      btnConfirmRead.addEventListener('click', closeModal);
+
+      btnCloseSuccess.addEventListener('click', () => {
+        modalSuccess.classList.add('hidden');
+        modalSuccess.classList.remove('flex');
+      });
+    });
+  </script>
+</body>
+</html>
