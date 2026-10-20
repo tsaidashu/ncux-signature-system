@@ -11,5 +11,5 @@
 ## 🚀 線上展示與使用
 透過 GitHub Pages 部署後，直接開啟 `https://<你的GitHub帳號>.github.io/<儲存庫名稱>/` 即可使用。
 例如https://tsaidashu.github.io/ncux-signature-system/
-## 最新版本
+## 實際運作版本
 NCUx 雲端課程授權同意書線上簽署平台 https://script.google.com/a/g.ncu.edu.tw/macros/s/AKfycbyqZ49528a21QApYkKM4cxDp_M7HJtC6m13Pbc4D8MemHE5iYScuuyje41wcJwYopM/exec
