@@ -10,3 +10,4 @@
 
 ## 🚀 線上展示與使用
 透過 GitHub Pages 部署後，直接開啟 `https://<你的GitHub帳號>.github.io/<儲存庫名稱>/` 即可使用。
+例如https://tsaidashu.github.io/ncux-signature-system/
